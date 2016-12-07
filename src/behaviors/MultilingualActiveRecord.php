@@ -18,6 +18,7 @@ class MultilingualActiveRecord extends Behavior
     public $translationAttributes = [];
 
     public $translationRelation = 'translations';
+    public $traslationRelationField = 'model_id';
     public $defaultTranslationRelation = 'defaultTranslation';
 
     /**

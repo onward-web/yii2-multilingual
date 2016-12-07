@@ -20,6 +20,8 @@ class MultilingualFormTabs extends Widget
 {
     /** @var \yii\db\ActiveRecord|\DevGroup\Multilingual\traits\MultilingualTrait|\DevGroup\Multilingual\behaviors\MultilingualActiveRecord */
     public $model = null;
+    
+    public $modelPath = null;
 
     /** @var string Child view filename */
     public $childView = '_edit';
@@ -60,15 +62,15 @@ class MultilingualFormTabs extends Widget
         } else {
             $languages = $multilingual->getAllLanguages();
         }
-        foreach ($languages as $index => $language) {
-            $flag = $language->iso_639_1 === 'en' ? 'gb' : $language->iso_639_1;
+        foreach ($languages as $index => $language) {            
             $items[] = [
-                'label' => '<span class="flag-icon flag-icon-' . $flag . '"></span> ' . $language->name,
+                'label' => '<span class="flag-icon flag-icon-' . $language->icon . '"></span> ' . $language->name,
                 'active' => $index === 0,
                 'content' => $this->renderFile(
                     $this->childView,
                     [
                         'model' => $this->model->getTranslation($language->id),
+                        'modelPath' => $this->modelPath->getPath($language->id),
                         'form' => $this->form,
                         'language' => $language,
                         'language_id' => $language->id,

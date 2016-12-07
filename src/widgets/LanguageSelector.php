@@ -1,35 +1,33 @@
 <?php
 
 namespace DevGroup\Multilingual\widgets;
-
-use DevGroup\Multilingual\models\Language;
 use Yii;
 use yii\base\Widget;
+use onwardWeb\Multilingual\models\Language;
+use kartik\icons\FlagIconAsset;
+
 
 class LanguageSelector extends Widget
 {
     public $viewFile = 'language-selector';
 
     public $blockClass = 'b-language-selector dropdown';
-    public $blockId = '';
-
+    
     public function run()
     {
-        /** @var \DevGroup\Multilingual\Multilingual $multilingual */
+        /** @var \onwardWeb\Multilingual\Multilingual $multilingual */
         $multilingual = Yii::$app->get('multilingual');
         $currentLanguageId = $multilingual->language_id;
 
-        if (empty($this->blockId)) {
-            $this->blockId = 'language-selector-' . $this->getId();
-        }
+       
+        FlagIconAsset::register($this->view);
 
         return $this->render(
             $this->viewFile,
             [
                 'languages' => $multilingual->getAllLanguages(),
                 'currentLanguageId' => $currentLanguageId,
-                'multilingual' => $multilingual,
-                'blockId' => $this->blockId,
+                'multilingual' => $multilingual,             
                 'blockClass' => $this->blockClass,
             ]
         );
