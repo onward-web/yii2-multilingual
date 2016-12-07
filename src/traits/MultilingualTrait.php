@@ -14,7 +14,7 @@ trait MultilingualTrait
     /**
      * @return string
      */
-    public static function getTranslationTableName()
+    protected static function getTranslationTableName()
     {
         if (self::$translationTableName === null) {
             /** @var ActiveRecord|MultilingualActiveRecord $model */
@@ -64,7 +64,7 @@ trait MultilingualTrait
     public function getDefaultTranslation()
     {
         /** @var \yii\db\ActiveRecord|\DevGroup\Multilingual\behaviors\MultilingualActiveRecord $this */
-        return $this->hasOne($this->getTranslationModelClassName(), [$this->traslationRelationField => 'id'])
+        return $this->hasOne($this->getTranslationModelClassName(), ['model_id' => 'id'])
             ->where([static::getTranslationTableName() . '.language_id' => Yii::$app->multilingual->language_id]);
     }
 
@@ -74,7 +74,7 @@ trait MultilingualTrait
     public function getTranslations()
     {
         /** @var \yii\db\ActiveRecord|\DevGroup\Multilingual\behaviors\MultilingualActiveRecord $this */
-        return $this->hasMany($this->getTranslationModelClassName(), [$this->traslationRelationField => 'id']);
+        return $this->hasMany($this->getTranslationModelClassName(), ['model_id' => 'id']);
     }
 
 }

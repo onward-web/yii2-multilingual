@@ -5,9 +5,7 @@ namespace DevGroup\Multilingual\behaviors;
 use Yii;
 use yii\base\Behavior;
 use yii\base\Model;
-use yii\base\ModelEvent;
 use yii\db\ActiveRecord;
-use yii\helpers\ArrayHelper;
 
 
 class MultilingualActiveRecord extends Behavior
@@ -18,7 +16,6 @@ class MultilingualActiveRecord extends Behavior
     public $translationAttributes = [];
 
     public $translationRelation = 'translations';
-    public $traslationRelationField = 'model_id';
     public $defaultTranslationRelation = 'defaultTranslation';
 
     /**
@@ -40,14 +37,15 @@ class MultilingualActiveRecord extends Behavior
         $className = $this->getTranslationModelClassName();
         /** @var ActiveRecord $exampleModel */
         $exampleModel = new $className;
-
-        $this->translationAttributes = $exampleModel->attributes();
-        if ($owner->hasMethod('advancedTranslatableAttributes')) {
-            $this->translationAttributes = ArrayHelper::merge(
-                $this->translationAttributes,
-                $owner->advancedTranslatableAttributes()
-            );
-        }
+        $this->translationAttributes = array_keys(
+            $exampleModel->getAttributes(
+                null,
+                [
+                    'language_id',
+                    'model_id'
+                ]
+            )
+        );
     }
 
     /**
@@ -56,7 +54,7 @@ class MultilingualActiveRecord extends Behavior
     public function getTranslationModelClassName()
     {
         if ($this->translationModelClass === false) {
-            return $this->owner->className() . 'Translation';
+            return $this->owner->className().'Translation';
         } else {
             return $this->translationModelClass;
         }
@@ -137,7 +135,6 @@ class MultilingualActiveRecord extends Behavior
 
         return $translation;
     }
-
     /**
      * Returns a value indicating whether the translation model for the specified language exists.
      * @param string|null $language_id
@@ -206,7 +203,6 @@ class MultilingualActiveRecord extends Behavior
             $owner->addError($this->translationRelation);
         }
     }
-
     /**
      * @return void
      */
@@ -222,30 +218,24 @@ class MultilingualActiveRecord extends Behavior
         $owner->populateRelation($this->translationRelation, []);
 
         foreach ($translations as $translation) {
-
-            $translation->loadDefaultValues();
             $owner->link($this->translationRelation, $translation);
         }
         // now all translations saved and are in _related !
-        return true;
+
     }
 
     /**
      * @return boolean
      */
-    public function beforeDelete(ModelEvent $event)
+    public function beforeDelete()
     {
-        $result = $event->isValid;
-        if ($result !== false) {
-            $translations = $this->owner->{$this->translationRelation};
-            /* @var ActiveRecord $translation */
-            foreach ($translations as $translation) {
-                $translation->delete();
-            }
+        $translations = $this->owner->{$this->translationRelation};
+        /* @var ActiveRecord $translation */
+        foreach ($translations as $translation) {
+            $translation->delete();
         }
-        return $result;
+        return true;
     }
-
     /**
      * @inheritdoc
      */
@@ -253,7 +243,6 @@ class MultilingualActiveRecord extends Behavior
     {
         return in_array($name, $this->translationAttributes) ?: parent::canGetProperty($name, $checkVars);
     }
-
     /**
      * @inheritdoc
      */
@@ -261,21 +250,19 @@ class MultilingualActiveRecord extends Behavior
     {
         return in_array($name, $this->translationAttributes) ?: parent::canSetProperty($name, $checkVars);
     }
-
     /**
      * @inheritdoc
      */
     public function __get($name)
     {
-        return $this->getTranslation()->{$name};
+        return $this->getTranslation()->getAttribute($name);
     }
-
     /**
      * @inheritdoc
      */
     public function __set($name, $value)
     {
         $translation = $this->getTranslation();
-        $translation->{$name} = $value;
+        $translation->setAttribute($name, $value);
     }
 }

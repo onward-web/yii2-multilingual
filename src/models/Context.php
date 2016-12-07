@@ -28,27 +28,17 @@ class Context extends ActiveRecord
             [['name', 'domain', 'tree_root_id'], 'required', 'except' => ['search']],
             [['name', 'domain'], 'string', 'max' => 50],
             [['tree_root_id'], 'integer'],
-            [['default_language_id'], 'integer'],
         ];
     }
 
     /**
-     * @return Language[]
+     * @return \yii2tech\filedb\ActiveQuery
      */
     public function getLanguages()
     {
-//        return $this->hasMany(Language::class, ['context_id' => 'id'])
-//            ->orderBy(['sort_order' => SORT_ASC])
-//            ->indexBy('id');
-        $result = [];
-        $langs = Language::getAll();
-
-        foreach ($langs as $lang) {
-            if (isset($lang->context_rules[$this->id])) {
-                $result[] = $lang;
-            }
-        }
-        return $result;
+        return $this->hasMany(Language::class, ['context_id' => 'id'])
+            ->orderBy(['sort_order' => SORT_ASC])
+            ->indexBy('id');
     }
 
     public function search($params = [])

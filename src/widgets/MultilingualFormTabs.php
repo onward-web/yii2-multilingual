@@ -2,11 +2,9 @@
 
 namespace DevGroup\Multilingual\widgets;
 
-use DevGroup\Multilingual\models\Context;
 use kartik\icons\FlagIconAsset;
 use DevGroup\Multilingual\models\Language;
 use Yii;
-use yii\base\InvalidParamException;
 use yii\base\Widget;
 use yii\bootstrap\Tabs;
 use yii\helpers\ArrayHelper;
@@ -20,8 +18,6 @@ class MultilingualFormTabs extends Widget
 {
     /** @var \yii\db\ActiveRecord|\DevGroup\Multilingual\traits\MultilingualTrait|\DevGroup\Multilingual\behaviors\MultilingualActiveRecord */
     public $model = null;
-    
-    public $modelPath = null;
 
     /** @var string Child view filename */
     public $childView = '_edit';
@@ -41,9 +37,6 @@ class MultilingualFormTabs extends Widget
     /** @var string HTML for footer of this nav-tabs-custom */
     public $footer = '';
 
-    /** @var int the context id. It is used to get languages. By default we use current context */
-    public $contextId;
-
     /**
      * @inheritdoc
      */
@@ -53,24 +46,17 @@ class MultilingualFormTabs extends Widget
 
         /** @var \DevGroup\Multilingual\Multilingual $multilingual */
         $multilingual = Yii::$app->get('multilingual');
-        if  ($this->contextId !== null) {
-            $context = Context::findOne($this->contextId);
-            if ($context === null) {
-                throw new InvalidParamException('Context not found');
-            }
-            $languages = $context->languages;
-        } else {
-            $languages = $multilingual->getAllLanguages();
-        }
-        foreach ($languages as $index => $language) {            
+
+        $languages = $multilingual->getAllLanguages();
+        foreach ($languages as $index => $language) {
+            $flag = $language->iso_639_1 === 'en' ? 'gb' : $language->iso_639_1;
             $items[] = [
-                'label' => '<span class="flag-icon flag-icon-' . $language->icon . '"></span> ' . $language->name,
+                'label' => '<span class="flag-icon flag-icon-' . $flag . '"></span> ' . $language->name,
                 'active' => $index === 0,
                 'content' => $this->renderFile(
                     $this->childView,
                     [
                         'model' => $this->model->getTranslation($language->id),
-                        'modelPath' => $this->modelPath->getPath($language->id),
                         'form' => $this->form,
                         'language' => $language,
                         'language_id' => $language->id,
