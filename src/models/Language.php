@@ -22,7 +22,12 @@ use yii2tech\filedb\ActiveRecord;
  */
 class Language extends ActiveRecord implements LanguageInterface
 {
-    use FileActiveRecord;
+    use DBActiveRecord;
+	
+	public static function tableName()
+    {
+        return  Yii::$app->get('multilingual')->table;      
+    }
 
     public function rules()
     {
