@@ -5,10 +5,12 @@ namespace DevGroup\Multilingual\components;
 use DevGroup\Multilingual\LanguageEvents\AfterGettingLanguage;
 use DevGroup\Multilingual\LanguageEvents\GettingLanguage;
 use DevGroup\Multilingual\LanguageEvents\LanguageEvent;
+use DevGroup\Multilingual\models\Context;
 use DevGroup\Multilingual\models\Language;
 use Yii;
 use yii\web\ServerErrorHttpException;
 use yii\web\UrlManager as BaseUrlManager;
+use yii\web\UrlNormalizerRedirectException;
 
 class UrlManager extends BaseUrlManager
 {
@@ -31,6 +33,7 @@ class UrlManager extends BaseUrlManager
     ];
 
     public $languageParam = 'language_id';
+    public $contextParam = 'context_id';
 
     public $forceHostInUrl = false;
 
@@ -97,6 +100,13 @@ class UrlManager extends BaseUrlManager
             unset($params[$this->languageParam]);
         }
 
+        $requested_context_id = isset($params[$this->contextParam]) ? $params[$this->contextParam] : null;
+        if ($requested_context_id === null) {
+            $requested_context_id = $multilingual->context_id;
+        } else {
+            unset($params[$this->contextParam]);
+        }
+
         /** @var Language $requested_language */
         $requested_language = call_user_func(
             [
@@ -108,11 +118,14 @@ class UrlManager extends BaseUrlManager
         if ($requested_language === null) {
             throw new ServerErrorHttpException('Requested language not found');
         }
+
+        $rules = $requested_language->rulesForContext($requested_context_id);
+
         $current_language_id = $multilingual->language_id;
 
         $url = parent::createUrl($params);
-        if (!empty($requested_language->folder)) {
-            $url = '/' . $requested_language->folder . '/' . ltrim($url, '/');
+        if (!empty($rules['folder'])) {
+            $url = '/' . $rules['folder'] . '/' . ltrim($url, '/');
         }
         if ($current_language_id === $requested_language->id && $this->forceHostInUrl === false) {
             return $url;
@@ -127,9 +140,9 @@ class UrlManager extends BaseUrlManager
         if ($this->forcePort !== null) {
             $port = $this->forcePort === 80 ? '' : ':' . $this->forcePort;
         } else {
-            $port = Yii::$app->request->port === 80 ? '' : ':' . Yii::$app->request->port;
+            $port = '';
         }
-        return $scheme . '://' . $requested_language->domain . $port . '/' . ltrim($url, '/');
+        return $scheme . '://' . $rules['domain'] . $port . '/' . ltrim($url, '/');
     }
 
     /**
@@ -169,51 +182,64 @@ class UrlManager extends BaseUrlManager
         $eventRequestedLanguage->request = $request;
         $eventRequestedLanguage->languages = $languages;
         $this->trigger(self::GET_LANGUAGE, $eventRequestedLanguage);
-
+        /** @var Context $context */
+        $context = Context::find()
+            ->where(['id' => $multilingual->context_id])
+            ->one();
         if ($eventRequestedLanguage->currentLanguageId === null) {
-            $language = call_user_func([$multilingual->modelsMap['Language'], 'find'])
-                ->where(['context_id' => $multilingual->context_id])
-                ->orderBy(['sort_order' => SORT_ASC])
-                ->limit(1)
-                ->one();
-            if ($language === null) {
+            // this is the situation when context_id is set, but no language id
+
+            if ($context) {
+                $multilingual->language_id = $context->default_language_id;
+            } else {
                 throw new \Exception('Unknown language');
             }
-            $multilingual->language_id = $language->id;
         } else {
             $multilingual->language_id = $eventRequestedLanguage->currentLanguageId;
         }
         $multilingual->language_id = $eventRequestedLanguage->currentLanguageId ?
             $eventRequestedLanguage->currentLanguageId :
-            $multilingual->default_language_id;
+            $context->default_language_id;
 
         /** @var bool|Language $languageMatched */
+        if (!isset($languages[$multilingual->language_id])) {
+            throw new \Exception(var_export($multilingual->getAllLanguages(),true));
+        }
         $languageMatched = $languages[$multilingual->language_id];
+        $rule = $languageMatched->rulesForContext($context->id);
 
         Yii::$app->language = $languageMatched->yii_language;
 
 
         $path = explode('/', $request->pathInfo);
-        $folder = array_shift($path);
+
+
+
 
         if (is_array($this->excludeRoutes)) {
-            $resolved = parent::parseRequest($request);
-            if (is_array($resolved)) {
-                $route = reset($resolved);
-                if (in_array($route, $this->excludeRoutes)) {
-                    $multilingual->language_id = $multilingual->cookie_language_id;
-                    /** @var Language $lang */
-                    $lang = call_user_func(
-                        [
-                            $multilingual->modelsMap['Language'],
-                            'getById'
-                        ],
-                        $multilingual->cookie_language_id
-                    );
-                    Yii::$app->language = $lang->yii_language;
-                    return $resolved;
+            if (in_array(implode('/', $path), $this->excludeRoutes, true)) {
+                $multilingual->language_id = $multilingual->cookie_language_id;
+                /** @var Language $lang */
+                $lang = call_user_func(
+                    [
+                        $multilingual->modelsMap['Language'],
+                        'getById'
+                    ],
+                    $multilingual->cookie_language_id
+                );
+                Yii::$app->language = $lang->yii_language;
+
+
+                if (!empty($rule['folder'])) {
+                    // URL Rules MUST not see language folder prefix
+                    $pathWithoutFolder = $path;
+                    unset($pathWithoutFolder[0]);
+                    $request->setPathInfo(implode('/', $pathWithoutFolder));
+
                 }
+                return parent::parseRequest($request);
             }
+
         }
 
         $eventPreferredLanguage = new LanguageEvent();
@@ -235,14 +261,14 @@ class UrlManager extends BaseUrlManager
                 $multilingual->needConfirmationEvents
             ) ||
             $eventRequestedLanguage->resultClass === null ||
-            Yii::$app->session->getFlash('needsConfirmation', false)
+            Yii::$app->session->get('needsConfirmation', false)
         ) {
             $multilingual->needsConfirmation = true;
         }
 
         if ($eventRequestedLanguage->redirectUrl !== false && $eventRequestedLanguage->redirectCode !== false) {
             if ($multilingual->needsConfirmation) {
-                Yii::$app->session->setFlash('needsConfirmation', true);
+                Yii::$app->session->set('needsConfirmation', true);
             }
             Yii::$app->response->redirect(
                 $eventRequestedLanguage->redirectUrl,
@@ -252,9 +278,11 @@ class UrlManager extends BaseUrlManager
             Yii::$app->end();
         }
 
-        if (!empty($languageMatched->folder)) {
+        if (!empty($rule['folder'])) {
+            unset($path[0]);
             $request->setPathInfo(implode('/', $path));
         }
+
 
         return parent::parseRequest($request);
     }
