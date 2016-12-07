@@ -14,15 +14,12 @@
         {
             "name": "Alexander Kozhevnikov",
             "email": "b37hr3z3n@gmail.com"
-        }
+        }		
     ],
     "require": {
         "yiisoft/yii2": "~2.0.6",       
         "devgroup/yii2-tag-dependency-helper": "~1.5",
         "kartik-v/yii2-icons": "~1.4.0"
-    },
-    "require-dev": {
-        "devgroup/dotplant-dev": "~1.0.0"
     },
     "autoload": {
         "psr-4": {
