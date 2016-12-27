@@ -17,7 +17,7 @@ use yii2tech\filedb\ActiveRecord;
  * @property Language[] $languages
  * @property string $db_table_postfix
  */
-class Context extends ActiveRecord
+class Context extends ActiveRecord implements ContextInterface
 {
     use FileActiveRecord;
 
@@ -68,5 +68,13 @@ class Context extends ActiveRecord
             ->andFilterWhere(['like', 'domain', $this->domain])
             ->andFilterWhere(['tree_root_id' => $this->tree_root_id]);
         return $dataProvider;
+    }
+    
+    public static function getListData()
+    {
+        return ArrayHelper::merge(
+            [null => 'Multi-context'],
+            ArrayHelper::map(static::find()->all(), 'id', 'name')
+        );
     }
 }

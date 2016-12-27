@@ -35,7 +35,7 @@ trait MultilingualTrait
         /** @var ActiveQuery $query */
         $query = Yii::createObject(ActiveQuery::className(), [get_called_class()]);
         $query = $query
-            ->innerJoinWith(['defaultTranslation']);
+            ->innerJoinWith(['defaultTranslation']);           
 
         if (method_exists(get_called_class(), 'applyDefaultScope')) {
             $query = call_user_func([get_called_class(), 'applyDefaultScope'], $query);
