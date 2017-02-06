@@ -11,6 +11,8 @@ use Yii;
 use yii\web\ServerErrorHttpException;
 use yii\web\UrlManager as BaseUrlManager;
 use yii\web\UrlNormalizerRedirectException;
+use yii\web\UrlRule;
+
 
 class UrlManager extends BaseUrlManager
 {
@@ -19,9 +21,11 @@ class UrlManager extends BaseUrlManager
     const AFTER_GET_LANGUAGE = 'after_get_language';
     const GET_PREFERRED_LANGUAGE = 'get_preferred_language';
 
-    public $cache = 'cache';
+    public $cache = false;
+    public $cacheable = false;
+    private $_ruleCache;
 
-    public $cacheLifetime = 86400;
+    public $cacheLifetime = 0;
 
     /** @var bool|array */
     public $includeRoutes = false;
@@ -64,6 +68,8 @@ class UrlManager extends BaseUrlManager
      */
     public function createUrl($params)
     {
+        
+        
         $params = (array)$params;
         $route = trim($params[0], '/');
 
@@ -77,7 +83,8 @@ class UrlManager extends BaseUrlManager
             if (in_array($route, $this->includeRoutes) === false) {
                 return parent::createUrl($params);
             }
-        }
+        }      
+        
         return $this->createLanguageUrl($params);
 
     }
@@ -90,15 +97,17 @@ class UrlManager extends BaseUrlManager
      */
     private function createLanguageUrl($params)
     {
+        
+        
+        
         /** @var \DevGroup\Multilingual\Multilingual $multilingual */
         $multilingual = Yii::$app->multilingual;
 
-        $requested_language_id = isset($params[$this->languageParam]) ? $params[$this->languageParam] : null;
-        if ($requested_language_id === null) {
-            $requested_language_id = $multilingual->language_id;
-        } else {
-            unset($params[$this->languageParam]);
-        }
+        //$requested_language_id
+        $params[$this->languageParam] = isset($params[$this->languageParam]) ? $params[$this->languageParam] : null;
+        if ($params[$this->languageParam] === null) {
+            $params[$this->languageParam] = $multilingual->language_id;
+        } 
 
         $requested_context_id = isset($params[$this->contextParam]) ? $params[$this->contextParam] : null;
         if ($requested_context_id === null) {
@@ -113,7 +122,7 @@ class UrlManager extends BaseUrlManager
                 $multilingual->modelsMap['Language'],
                 'getById'
             ],
-            $requested_language_id
+            $params[$this->languageParam] //$requested_language_id
         );
         if ($requested_language === null) {
             throw new ServerErrorHttpException('Requested language not found');
@@ -123,7 +132,9 @@ class UrlManager extends BaseUrlManager
 
         $current_language_id = $multilingual->language_id;
 
-        $url = parent::createUrl($params);
+                
+               
+        $url = $this->createSeoUrl($params);
         if (!empty($rules['folder'])) {
             $url = '/' . $rules['folder'] . '/' . ltrim($url, '/');
         }
@@ -144,6 +155,74 @@ class UrlManager extends BaseUrlManager
         }
         return $scheme . '://' . $rules['domain'] . $port . '/' . ltrim($url, '/');
     }
+    
+    
+    
+    public function createSeoUrl($params)
+    {  
+               
+        $params = (array)$params;
+        $anchor = isset($params['#']) ? '#' . $params['#'] : '';
+        unset($params['#'], $params[$this->routeParam]);
+        $route = trim($params[0], '/');
+        unset($params[0]);
+        $baseUrl = $this->showScriptName || !$this->enablePrettyUrl ? $this->getScriptUrl() : $this->getBaseUrl();
+        if ($this->enablePrettyUrl) {
+            $cacheKey = $route . '?' . implode('&', array_keys($params));
+            /* @var $rule UrlRule */
+            $url = false;
+            if (isset($this->_ruleCache[$cacheKey])) {
+                foreach ($this->_ruleCache[$cacheKey] as $rule) {
+                    if (($url = $rule->createUrl($this, $route, $params)) !== false) {
+                        break;
+                    }
+                }
+            } else {
+                $this->_ruleCache[$cacheKey] = [];
+            }
+            if ($url === false) {
+                foreach ($this->rules as $rule) {
+                    if (!empty($rule->defaults) && $rule->mode !== UrlRule::PARSING_ONLY) {
+                        // if there is a rule with default values involved, the matching result may not be cached
+                        $this->cacheable = false;
+                    }
+                    if (($url = $rule->createUrl($this, $route, $params)) !== false) {
+                        if ($this->cacheable) {
+                            $this->_ruleCache[$cacheKey][] = $rule;
+                        }
+                        break;
+                    }
+                }
+            }
+            if ($url !== false) {
+                if (strpos($url, '://') !== false) {
+                    if ($baseUrl !== '' && ($pos = strpos($url, '/', 8)) !== false) {
+                        return substr($url, 0, $pos) . $baseUrl . substr($url, $pos) . $anchor;
+                    } else {
+                        return $url . $baseUrl . $anchor;
+                    }
+                } else {
+                    return "$baseUrl/{$url}{$anchor}";
+                }
+            }
+            if ($this->suffix !== null) {
+                $route .= $this->suffix;
+            }
+            if (!empty($params) && ($query = http_build_query($params)) !== '') {
+                $route .= '?' . $query;
+            }
+            return "$baseUrl/{$route}{$anchor}";
+        } else {
+            
+            $url = "$baseUrl?{$this->routeParam}=" . urlencode($route);
+            if (!empty($params) && ($query = http_build_query($params)) !== '') {
+                $url .= '&' . $query;
+            }
+            return $url . $anchor;
+        }
+    }
+    
+    
 
     /**
      * @return string Requested domain
